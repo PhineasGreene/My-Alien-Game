@@ -1,0 +1,279 @@
+<DOCTYPE html>
+<html>
+	<head>
+		<title>The Game</title>
+		<link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet">
+
+		<style>
+			input{
+				display:block;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>The Game</h1>
+
+		<h2>Sign Up With Your Email</h2>
+		<form>
+			<input type="text" placeholder="Email" id="signInEmail">
+			<input type="password" placeholder="Password" id="signInPassword">
+			<button type="button" id="signInButton">Sign In</button>
+		</form>
+
+		<h2>Log In With Your Email</h2>
+		<form>
+			<input type="text" placeholder="Email" id="loginEmail">
+			<input type="password" placeholder="Password" id="loginPassword">
+			<button type="button" id="loginButton">Login</button>
+		</form>
+
+		<!--This draws the Canvas on the webpage -->
+        <canvas id="mycanvas"></canvas> </p>
+	</body>
+
+	<!-- Include Proscessing libraries becuase they make life easy! -->
+ 	<script src="https://cdn.jsdelivr.net/processing.js/1.4.8/processing.min.js"></script>
+
+	<script src="https://www.gstatic.com/firebasejs/4.6.1/firebase.js"></script>
+	<script>
+	  // Initialize Firebase
+	  var config = {
+	    apiKey: "AIzaSyC0ENm_qZbeynyr0VeeD64crNQi6Huj5ak",
+	    authDomain: "user-auth-game.firebaseapp.com",
+	    databaseURL: "https://user-auth-game.firebaseio.com",
+	    projectId: "user-auth-game",
+	    storageBucket: "",
+	    messagingSenderId: "975929596417"
+	  };
+	  firebase.initializeApp(config);
+	</script>
+
+	<script>
+		// From here to line 105 is the stuff that really matters. The rest is just the game. All firebase stuff will be marked with "FIREBASE".
+
+		// firebase variables for more consise code
+    	var auth=firebase.auth();
+
+    	var dB=firebase.database();
+
+    	var highscore=0;
+
+    	var uid="";
+
+    	// the buttons
+		var signInButton=document.getElementById("signInButton");
+		var loginButton=document.getElementById("loginButton");
+
+		// the sign in buttons event listener
+		signInButton.addEventListener("click", function(){
+			var username=document.getElementById("signInEmail").value;
+    		var password=document.getElementById("signInPassword").value;
+
+    		console.log(username);
+    		console.log(password);
+
+    		auth.createUserWithEmailAndPassword(username, password).then(function(user){
+    			// the users uid
+                uid=user.uid;
+
+                // log out the user object and their uid
+                console.log(uid);
+    			console.log(user);
+
+    			// set the user's stuff
+    			dB.ref("/users/"+uid+"/highscore").set(0);
+
+    			//give them message :P
+    			alert("By signing in you agree to the following terms of use :\n\nWhen you lose, you will not harm yourself, or others in any way, no matter how close ypu were to getting a new highscore. When you get a new highscore, the celabratory activities shoud not exceed a cost of $999.99.\n\nFalure to comply to these terms of service will result in emmediate termination of your acount.");
+    		}).catch(function(error) {
+    			alert(error.message);
+    		});
+		});
+
+		// the login buttons event listener
+		loginButton.addEventListener("click", function(){
+			var username=document.getElementById("loginEmail").value;
+    		var password=document.getElementById("loginPassword").value;
+
+    		console.log(username);
+    		console.log(password);
+
+    		auth.signInWithEmailAndPassword(username, password).then(function(user){
+    			//the user's uid
+                uid=user.uid;
+
+    			//the user is logged in
+    			console.log(user);
+
+	    		//set the highscore
+	    		dB.ref("/users/"+user.uid+"/highscore").once("value", function(snapshot){
+	    			highscore=snapshot.val();
+
+	    			//tell them so
+	    			alert("Your are now logged in. Your highscore is "+snapshot.val()+".");
+	    		});
+    		}).catch(function(error) {
+    			alert(error.message);
+    		});
+    	});
+
+		//the game is in here.
+		var sketchProc = function(processingInstance) {
+	    with (processingInstance) {
+		        size(600, 600); 
+		        frameRate(60);
+
+				textFont(createFont("Press Start 2P"));
+
+				//draw text and images from the center
+				imageMode(CENTER);
+				textAlign(CENTER, CENTER);
+
+				//all images for the game
+				var images={
+					player:loadImage("http://www.clker.com/cliparts/u/B/R/o/T/l/my-alien-hi.png"),
+					debris:loadImage("http://rs1104.pbsrc.com/albums/h329/zorq1/Spinning-asteroid-6.gif~c200"),
+					background:loadImage("http://images2.fanpop.com/images/photos/7000000/Space-Art-Wallpaper-space-7076476-1920-1200.jpg")
+				};
+
+				/*The player object is controled by the mouse.*/
+				var Player=function(){
+					//the position
+					this.x=300;
+					this.y=550;
+					//the size
+					this.w=40;
+					this.h=70;
+				};
+
+				//display the player
+				Player.prototype.display=function(){
+					image(images.player, this.x, this.y, this.w+20, this.h+20);
+				};
+
+				//update the player
+				Player.prototype.update=function(){
+					//move our x position to the player's x position
+					this.x+=(mouseX-this.x)/10;
+				};
+
+				//is an objects colliding with the player
+				Player.prototype.detectCollide=function(b){
+					return b.x+b.w/2 > this.x-this.w/2 && b.x-b.w/2 < this.x+this.w/2 && b.y+b.h/2 > this.y -this.h/2 && b.y-b.h/2 < this.y+this.h/2;
+				};
+
+				/*The falling debris.*/
+				var Debris=function(x){
+					//the x position
+					this.x=x;
+					this.y=-30;
+					//the size
+					this.w=30;
+					this.h=30;
+				};
+
+				//display the debris
+				Debris.prototype.display=function(){
+					image(images.debris, this.x, this.y, this.w, this.h);
+				};
+
+				//update the debris
+				Debris.prototype.update=function(){
+					this.y+=2;
+				};
+
+				//hold all of the debis
+				var debris=[];
+
+				//an instace of the player
+				var player=new Player();
+
+				//the current score
+				var score=0;
+
+				//the scene
+				var scene="home";
+
+				draw=function(){
+					image(images.background, 300, 300, 600, 600);
+
+					//the game
+					if(scene==="game"){
+						//increment the score
+						if(frameCount % 10 === 0){
+							score++;
+						}
+
+						// run the player
+						player.display();
+						player.update();
+
+						if(frameCount % 20 === 0){
+							debris.push(new Debris(random(0, 600)));
+						}
+
+						//loop backwards through the debris
+						for(var i=debris.length-1; i>=0; i--){
+							//run the debris
+							debris[i].display();
+							debris[i].update();
+
+							//if they are off of the canvas, remove them
+							if(debris[i].y > 630){
+								debris.splice(i, 1);
+							}
+
+
+							//check for collisions
+							if(player.detectCollide(debris[i])){
+								if(score > highscore){
+									//FIREBASE
+									dB.ref("users/"+uid+"/highscore").set(score);
+									highscore=score;
+								}
+
+								//reset debris
+								debris=[];
+								//reset score
+								score=0;
+								//reset scene
+								scene="home";
+
+								break;
+							}
+						}
+
+
+						textSize(10);
+						fill(255);
+						text("Score : "+score, 100, 20);
+					}else{
+						textSize(10);
+						fill(255);
+						text("Highscore : "+highscore, 100, 10);
+
+						rect(200, 200, 200, 200);
+
+						textSize(30);
+						fill(0);
+						text("PLAY", 300, 300);
+					}
+				};
+
+				//is the mouse released
+				mouseReleased=function(){
+					//is the mouse in the button
+					if(mouseX > 200 && mouseY > 200 && mouseX < 400 && mouseY < 400 && uid !== ""){
+						scene="game";
+					}
+				};
+		    }
+		};
+	
+
+	    // Get the canvas that Processing-js will use
+	    var canvas = document.getElementById("mycanvas");  
+	    // Pass the function sketchProc (defined in myCode.js) to Processing's constructor.
+	    var processingInstance = new Processing(canvas, sketchProc); 
+	</script> 
+</html>
